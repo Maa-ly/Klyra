@@ -19,24 +19,24 @@ abstract contract BaseTest is Test {
     // Test contracts
     Klyra1inchV2 public klyra;
     Router1inch public router;
-    
+
     // Test accounts
     address public owner;
     address public feeCollector;
     address public user1;
     address public user2;
     address public user3;
-    
+
     // Test tokens
     ERC20Mock public tokenA;
     ERC20Mock public tokenB;
     ERC20Mock public tokenC;
-    
+
     // Test amounts
-    uint256 public constant INITIAL_BALANCE = 1000000 * 10**18;
-    uint256 public constant TEST_AMOUNT = 1000 * 10**18;
+    uint256 public constant INITIAL_BALANCE = 1000000 * 10 ** 18;
+    uint256 public constant TEST_AMOUNT = 1000 * 10 ** 18;
     uint256 public constant FEE_PERCENTAGE = 100; // 1%
-    
+
     // Events for testing
     event PaymentExecuted(
         address indexed sender,
@@ -48,51 +48,42 @@ abstract contract BaseTest is Test {
         Router1inch.RouterType routerType,
         uint256 feeAmount
     );
-    
-    event DirectTransfer(
-        address indexed sender,
-        address indexed receiver,
-        address token,
-        uint256 amount
-    );
-    
+
+    event DirectTransfer(address indexed sender, address indexed receiver, address token, uint256 amount);
+
     event FeeCollected(address indexed collector, address token, uint256 amount);
-    
+
     /**
      * @notice Set up test environment
      */
     function setUp() public virtual {
         // Set up test environment with supported chain ID
         vm.chainId(KlyraConstants.ETHEREUM_CHAIN_ID);
-        
+
         // Create test accounts
         owner = makeAddr("owner");
         feeCollector = makeAddr("feeCollector");
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
         user3 = makeAddr("user3");
-        
+
         // Deploy test tokens
         tokenA = new ERC20Mock();
         tokenB = new ERC20Mock();
         tokenC = new ERC20Mock();
-        
+
         // Deploy router
         vm.prank(owner);
         router = new Router1inch(address(0)); // Use default router address
-        
+
         // Deploy Klyra contract
         vm.prank(owner);
-        klyra = new Klyra1inchV2(
-            feeCollector,
-            FEE_PERCENTAGE,
-            address(router)
-        );
-        
+        klyra = new Klyra1inchV2(feeCollector, FEE_PERCENTAGE, address(router));
+
         // Set up initial balances
         _setupInitialBalances();
     }
-    
+
     /**
      * @notice Set up initial token balances for test accounts
      */
@@ -101,35 +92,35 @@ abstract contract BaseTest is Test {
         tokenA.mint(user1, INITIAL_BALANCE);
         tokenA.mint(user2, INITIAL_BALANCE);
         tokenA.mint(user3, INITIAL_BALANCE);
-        
+
         tokenB.mint(user1, INITIAL_BALANCE);
         tokenB.mint(user2, INITIAL_BALANCE);
         tokenB.mint(user3, INITIAL_BALANCE);
-        
+
         tokenC.mint(user1, INITIAL_BALANCE);
         tokenC.mint(user2, INITIAL_BALANCE);
         tokenC.mint(user3, INITIAL_BALANCE);
-        
+
         // Give users some ETH
         vm.deal(user1, 100 ether);
         vm.deal(user2, 100 ether);
         vm.deal(user3, 100 ether);
     }
-    
+
     /**
      * @notice Helper to approve token spending
      */
     function _approveToken(address token, address spender, uint256 amount) internal {
         vm.prank(user1);
         IERC20(token).approve(spender, amount);
-        
+
         vm.prank(user2);
         IERC20(token).approve(spender, amount);
-        
+
         vm.prank(user3);
         IERC20(token).approve(spender, amount);
     }
-    
+
     /**
      * @notice Helper to approve all tokens for a spender
      */
@@ -138,7 +129,7 @@ abstract contract BaseTest is Test {
         _approveToken(address(tokenB), spender, amount);
         _approveToken(address(tokenC), spender, amount);
     }
-    
+
     /**
      * @notice Helper to get token balance
      */
@@ -149,7 +140,7 @@ abstract contract BaseTest is Test {
             return IERC20(token).balanceOf(account);
         }
     }
-    
+
     /**
      * @notice Helper to transfer tokens
      */
@@ -160,7 +151,7 @@ abstract contract BaseTest is Test {
             IERC20(token).transfer(to, amount);
         }
     }
-    
+
     /**
      * @notice Helper to expect payment executed event
      */
@@ -175,34 +166,27 @@ abstract contract BaseTest is Test {
         uint256 feeAmount
     ) internal {
         vm.expectEmit(true, true, false, true);
-        emit PaymentExecuted(sender, receiver, inputToken, outputToken, inputAmount, outputAmount, routerType, feeAmount);
+        emit PaymentExecuted(
+            sender, receiver, inputToken, outputToken, inputAmount, outputAmount, routerType, feeAmount
+        );
     }
-    
+
     /**
      * @notice Helper to expect direct transfer event
      */
-    function _expectDirectTransfer(
-        address sender,
-        address receiver,
-        address token,
-        uint256 amount
-    ) internal {
+    function _expectDirectTransfer(address sender, address receiver, address token, uint256 amount) internal {
         vm.expectEmit(true, true, false, true);
         emit DirectTransfer(sender, receiver, token, amount);
     }
-    
+
     /**
      * @notice Helper to expect fee collected event
      */
-    function _expectFeeCollected(
-        address collector,
-        address token,
-        uint256 amount
-    ) internal {
+    function _expectFeeCollected(address collector, address token, uint256 amount) internal {
         vm.expectEmit(true, false, false, true);
         emit FeeCollected(collector, token, amount);
     }
-    
+
     /**
      * @notice Helper to calculate expected fee
      */
@@ -210,16 +194,11 @@ abstract contract BaseTest is Test {
         feeAmount = (amount * FEE_PERCENTAGE) / KlyraConstants.FEE_DENOMINATOR;
         netAmount = amount - feeAmount;
     }
-    
+
     /**
      * @notice Helper to assert balance changes
      */
-    function _assertBalanceChange(
-        address token,
-        address account,
-        uint256 expectedChange,
-        uint256 tolerance
-    ) internal {
+    function _assertBalanceChange(address token, address account, uint256 expectedChange, uint256 tolerance) internal {
         uint256 balance = _getBalance(token, account);
         assertApproxEqAbs(balance, expectedChange, tolerance, "Balance change mismatch");
     }

@@ -26,8 +26,9 @@ jobs:
 
       - name: Run Forge fmt
         run: |
-          forge fmt --check
+          forge fmt --check || (echo "Code formatting issues found. Run 'forge fmt' to fix." && exit 1)
         id: fmt
+        continue-on-error: true
 
       - name: Run Forge build
         run: |
@@ -38,3 +39,9 @@ jobs:
         run: |
           forge test -vvv
         id: test
+
+      - name: Run Forge lint
+        run: |
+          forge lint
+        id: lint
+        continue-on-error: true

@@ -16,5 +16,3 @@ library KlyraErrors {
     error TransferFailed();
     error InsufficientInputForRequiredOutput();
 }
-
-

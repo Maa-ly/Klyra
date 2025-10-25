@@ -26,12 +26,10 @@ interface IAggregationRouterV6 {
      * @return returnAmount Amount of destination tokens received
      * @return spentAmount Amount of source tokens spent
      */
-    function swap(
-        address executor,
-        SwapDescription calldata desc,
-        bytes calldata permit,
-        bytes calldata data
-    ) external payable returns (uint256 returnAmount, uint256 spentAmount);
+    function swap(address executor, SwapDescription calldata desc, bytes calldata permit, bytes calldata data)
+        external
+        payable
+        returns (uint256 returnAmount, uint256 spentAmount);
 
     /**
      * @notice Performs an optimized unswap (direct swap without aggregation)
@@ -41,12 +39,10 @@ interface IAggregationRouterV6 {
      * @param dex DEX identifier
      * @return returnAmount Amount of destination tokens received
      */
-    function unoswap(
-        address srcToken,
-        uint256 amount,
-        uint256 minReturn,
-        uint256 dex
-    ) external payable returns (uint256 returnAmount);
+    function unoswap(address srcToken, uint256 amount, uint256 minReturn, uint256 dex)
+        external
+        payable
+        returns (uint256 returnAmount);
 
     /**
      * @notice Performs an optimized unswap with intermediate token
@@ -57,13 +53,10 @@ interface IAggregationRouterV6 {
      * @param dex2 Second DEX identifier
      * @return returnAmount Amount of destination tokens received
      */
-    function unoswap2(
-        address srcToken,
-        uint256 amount,
-        uint256 minReturn,
-        uint256 dex,
-        uint256 dex2
-    ) external payable returns (uint256 returnAmount);
+    function unoswap2(address srcToken, uint256 amount, uint256 minReturn, uint256 dex, uint256 dex2)
+        external
+        payable
+        returns (uint256 returnAmount);
 
     /**
      * @notice Performs an optimized unswap with two intermediate tokens
@@ -75,14 +68,10 @@ interface IAggregationRouterV6 {
      * @param dex3 Third DEX identifier
      * @return returnAmount Amount of destination tokens received
      */
-    function unoswap3(
-        address srcToken,
-        uint256 amount,
-        uint256 minReturn,
-        uint256 dex,
-        uint256 dex2,
-        uint256 dex3
-    ) external payable returns (uint256 returnAmount);
+    function unoswap3(address srcToken, uint256 amount, uint256 minReturn, uint256 dex, uint256 dex2, uint256 dex3)
+        external
+        payable
+        returns (uint256 returnAmount);
 
     /**
      * @notice Rescues stuck tokens from the contract
@@ -96,5 +85,3 @@ interface IAggregationRouterV6 {
      */
     function destroy() external;
 }
-
-

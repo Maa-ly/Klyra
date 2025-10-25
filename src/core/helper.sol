@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { KlyraErrors } from "../dataTypes/errors.sol";
-import { KlyraConstants } from "../dataTypes/constants.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {KlyraErrors} from "../dataTypes/errors.sol";
+import {KlyraConstants} from "../dataTypes/constants.sol";
 
 /**
  * @title KlyraHelpers
@@ -12,7 +12,7 @@ import { KlyraConstants } from "../dataTypes/constants.sol";
  */
 library KlyraHelpers {
     using SafeERC20 for IERC20;
-    
+
     /**
      * @notice Handle token input (transfer from user to contract)
      */
@@ -21,7 +21,7 @@ library KlyraHelpers {
             IERC20(token).safeTransferFrom(from, to, amount);
         }
     }
-    
+
     /**
      * @notice Approve router for token spending
      */
@@ -30,30 +30,31 @@ library KlyraHelpers {
             IERC20(token).safeIncreaseAllowance(router, amount);
         }
     }
-    
+
     /**
      * @notice Calculate fee and net amount
      */
-    function calculateFee(
-        uint256 amount,
-        uint256 feePercentage
-    ) internal pure returns (uint256 feeAmount, uint256 netAmount) {
+    function calculateFee(uint256 amount, uint256 feePercentage)
+        internal
+        pure
+        returns (uint256 feeAmount, uint256 netAmount)
+    {
         feeAmount = (amount * feePercentage) / KlyraConstants.FEE_DENOMINATOR;
         netAmount = amount - feeAmount;
     }
-    
+
     /**
      * @notice Transfer token or ETH
      */
     function transferToken(address token, address to, uint256 amount) internal {
         if (token == KlyraConstants.ETH_ADDRESS) {
-            (bool success, ) = payable(to).call{value: amount}("");
+            (bool success,) = payable(to).call{value: amount}("");
             if (!success) revert KlyraErrors.TransferFailed();
         } else {
             IERC20(token).safeTransfer(to, amount);
         }
     }
-    
+
     /**
      * @notice Get balance of token or ETH
      */
@@ -64,7 +65,7 @@ library KlyraHelpers {
             return IERC20(token).balanceOf(account);
         }
     }
-    
+
     /**
      * @notice Validate output meets requirement
      */
@@ -74,4 +75,3 @@ library KlyraHelpers {
         }
     }
 }
-

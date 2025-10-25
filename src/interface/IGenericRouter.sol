@@ -59,5 +59,3 @@ interface IGenericRouter {
         bytes calldata data
     ) external payable returns (uint256 returnAmount);
 }
-
-

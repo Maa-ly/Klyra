@@ -8,7 +8,7 @@ pragma solidity 0.8.26;
  */
 interface IUnifiedRouter {
     // ============ STRUCTS ============
-    
+
     struct SwapDescription {
         address srcToken;
         address dstToken;
@@ -20,7 +20,7 @@ interface IUnifiedRouter {
     }
 
     // ============ AGGREGATION ROUTER FUNCTIONS ============
-    
+
     /**
      * @notice Performs a swap using the aggregation protocol
      * @param executor Address that will execute the swap
@@ -30,15 +30,13 @@ interface IUnifiedRouter {
      * @return returnAmount Amount of destination tokens received
      * @return spentAmount Amount of source tokens spent
      */
-    function swap(
-        address executor,
-        SwapDescription calldata desc,
-        bytes calldata permit,
-        bytes calldata data
-    ) external payable returns (uint256 returnAmount, uint256 spentAmount);
+    function swap(address executor, SwapDescription calldata desc, bytes calldata permit, bytes calldata data)
+        external
+        payable
+        returns (uint256 returnAmount, uint256 spentAmount);
 
     // ============ UNOSWAP ROUTER FUNCTIONS ============
-    
+
     /**
      * @notice Performs an optimized single-DEX swap
      * @param srcToken Source token address (use address(0) for ETH)
@@ -47,12 +45,10 @@ interface IUnifiedRouter {
      * @param pools Array of pool data for the swap path
      * @return returnAmount Amount of destination tokens received
      */
-    function unoswap(
-        address srcToken,
-        uint256 amount,
-        uint256 minReturn,
-        uint256[] calldata pools
-    ) external payable returns (uint256 returnAmount);
+    function unoswap(address srcToken, uint256 amount, uint256 minReturn, uint256[] calldata pools)
+        external
+        payable
+        returns (uint256 returnAmount);
 
     /**
      * @notice Performs an optimized swap with one intermediate token (2 hops)
@@ -62,15 +58,13 @@ interface IUnifiedRouter {
      * @param pools Array of pool data for the swap path
      * @return returnAmount Amount of destination tokens received
      */
-    function unoswapWithPools(
-        address srcToken,
-        uint256 amount,
-        uint256 minReturn,
-        uint256[] calldata pools
-    ) external payable returns (uint256 returnAmount);
+    function unoswapWithPools(address srcToken, uint256 amount, uint256 minReturn, uint256[] calldata pools)
+        external
+        payable
+        returns (uint256 returnAmount);
 
     // ============ CLIPPER ROUTER FUNCTIONS ============
-    
+
     /**
      * @notice Performs a swap through Clipper exchange
      * @param clipperExchange Address of Clipper exchange
@@ -95,7 +89,7 @@ interface IUnifiedRouter {
     ) external payable returns (uint256 returnAmount);
 
     // ============ GENERIC ROUTER FUNCTIONS ============
-    
+
     /**
      * @notice Performs a generic swap with custom routing
      * @param executor Address that will execute the swap

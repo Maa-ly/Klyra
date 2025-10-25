@@ -16,12 +16,10 @@ interface IUnoswapRouter {
      * @param dex Encoded DEX identifier and pool data
      * @return returnAmount Amount of destination tokens received
      */
-    function unoswap(
-        address srcToken,
-        uint256 amount,
-        uint256 minReturn,
-        uint256 dex
-    ) external payable returns (uint256 returnAmount);
+    function unoswap(address srcToken, uint256 amount, uint256 minReturn, uint256 dex)
+        external
+        payable
+        returns (uint256 returnAmount);
 
     /**
      * @notice Performs an optimized swap with one intermediate token (2 hops)
@@ -32,13 +30,10 @@ interface IUnoswapRouter {
      * @param dex2 Second DEX identifier and pool data
      * @return returnAmount Amount of destination tokens received
      */
-    function unoswap2(
-        address srcToken,
-        uint256 amount,
-        uint256 minReturn,
-        uint256 dex,
-        uint256 dex2
-    ) external payable returns (uint256 returnAmount);
+    function unoswap2(address srcToken, uint256 amount, uint256 minReturn, uint256 dex, uint256 dex2)
+        external
+        payable
+        returns (uint256 returnAmount);
 
     /**
      * @notice Performs an optimized swap with two intermediate tokens (3 hops)
@@ -50,14 +45,10 @@ interface IUnoswapRouter {
      * @param dex3 Third DEX identifier and pool data
      * @return returnAmount Amount of destination tokens received
      */
-    function unoswap3(
-        address srcToken,
-        uint256 amount,
-        uint256 minReturn,
-        uint256 dex,
-        uint256 dex2,
-        uint256 dex3
-    ) external payable returns (uint256 returnAmount);
+    function unoswap3(address srcToken, uint256 amount, uint256 minReturn, uint256 dex, uint256 dex2, uint256 dex3)
+        external
+        payable
+        returns (uint256 returnAmount);
 
     /**
      * @notice Performs a swap to a specific receiver
@@ -68,13 +59,10 @@ interface IUnoswapRouter {
      * @param recipient Address that will receive destination tokens
      * @return returnAmount Amount of destination tokens received
      */
-    function unoswapTo(
-        address srcToken,
-        uint256 amount,
-        uint256 minReturn,
-        uint256 dex,
-        address payable recipient
-    ) external payable returns (uint256 returnAmount);
+    function unoswapTo(address srcToken, uint256 amount, uint256 minReturn, uint256 dex, address payable recipient)
+        external
+        payable
+        returns (uint256 returnAmount);
 
     /**
      * @notice Performs a 2-hop swap to a specific receiver
@@ -116,5 +104,3 @@ interface IUnoswapRouter {
         address payable recipient
     ) external payable returns (uint256 returnAmount);
 }
-
-
