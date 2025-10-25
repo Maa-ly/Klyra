@@ -104,7 +104,7 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
     {
         // CHECKS: Handle token input and validate
         KlyraHelpers.handleTokenInput(tokenFrom, amount, msg.sender, address(this));
-        KlyraHelpers.approveRouter(tokenFrom, address(router), amount);
+        
         
         // CHECKS: If same token, do direct transfer
         if (tokenFrom == tokenTo) {
@@ -113,6 +113,7 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         
         // EFFECTS: Calculate fees
         (uint256 feeAmount, uint256 swapAmount) = KlyraHelpers.calculateFee(amount, feePercentage);
+        KlyraHelpers.approveRouter(tokenFrom, address(router), swapAmount);
         
         // INTERACTIONS: Execute swap
         uint256 output = _executeAggregationSwap(
@@ -474,6 +475,7 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
             msg.sender, receiver, tokenFrom, tokenTo, inputAmount, outputAmount, routerType, feeAmount
         );
     }
+    
     function getContractBalance() external view returns(uint256){
         return address(this).balance;
     }
