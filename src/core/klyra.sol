@@ -2,6 +2,7 @@
 pragma solidity 0.8.26;
 
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { Router1inch } from "../routers/1incherouter.sol";
 import { KlyraModifiers } from "./modifer.sol";
@@ -191,6 +192,28 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         
         // INTERACTIONS: Execute direct transfer
         return _directTransferInternal(token, receiver, amount);
+    }
+    
+    /**
+     * @notice Approve an address to spend tokens on behalf of msg.sender
+     * @param token The token address to approve
+     * @param spender The address to approve
+     * @param amount The amount to approve
+     */
+    function approveToken(
+        address token,
+        address spender,
+        uint256 amount
+    ) 
+        external 
+        validAddress(token)
+        validAddress(spender)
+        validAmount(amount)
+    {
+        // CHECKS: Validate inputs (done by modifiers)
+        
+        // INTERACTIONS: Approve the spender to spend tokens
+        IERC20(token).approve(spender, amount);
     }
     
     // ============ ADMIN FUNCTIONS ============
