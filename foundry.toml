@@ -12,7 +12,7 @@ optimizer_runs = 200
 
 [rpc_endpoints]
 localchain = "${LOCALCHAIN_URL}"
-basechain = "${BASE_URL}"
-kaiatestnet = "${KAIA_TESTNET_URL}"
+basechain = "${BASE_TESTNET_URL}"
+ethtestnet = "${ETH_TESTNET_URL}"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

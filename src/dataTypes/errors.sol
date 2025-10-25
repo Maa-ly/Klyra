@@ -15,4 +15,7 @@ library KlyraErrors {
     error InvalidFee();
     error TransferFailed();
     error InsufficientInputForRequiredOutput();
+    // Approval / Permit
+    error UserMustApproveSpender(address token, address spender);
+    error PermitNotSupported(address token);
 }

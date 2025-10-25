@@ -15,9 +15,19 @@ library KlyraHelpers {
 
     /**
      * @notice Handle token input (transfer from user to contract)
+     * @dev REQUIRES: User must have called token.approve(thisContract, amount) BEFORE calling this
+     * @dev This uses safeTransferFrom which will revert if:
+     *      1. User hasn't approved this contract
+     *      2. User's approval amount is less than the transfer amount
+     *      3. User doesn't have sufficient token balance
+     * @param token The ERC20 token address (or ETH_ADDRESS for native ETH)
+     * @param amount The amount to transfer
+     * @param from The address to transfer from (must have approved this contract)
+     * @param to The address to transfer to
      */
     function handleTokenInput(address token, uint256 amount, address from, address to) internal {
         if (token != KlyraConstants.ETH_ADDRESS) {
+            // This will revert with "ERC20InsufficientAllowance" if user hasn't approved
             IERC20(token).safeTransferFrom(from, to, amount);
         }
     }
