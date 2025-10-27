@@ -62,3 +62,4 @@ The deployment script creates 3 test tokens:
 - **Mock USDC** (6 decimals) - 1M tokens
 - **Mock DAI** (18 decimals) - 1M tokens  
 - **Mock WETH** (18 decimals) - 1000 tokens
+
