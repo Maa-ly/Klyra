@@ -27,7 +27,6 @@ library KlyraHelpers {
      */
     function handleTokenInput(address token, uint256 amount, address from, address to) internal {
         if (token != KlyraConstants.ETH_ADDRESS) {
-          
             IERC20(token).safeTransferFrom(from, to, amount);
         }
     }

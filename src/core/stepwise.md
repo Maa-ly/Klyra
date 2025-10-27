@@ -105,5 +105,8 @@ best with good rate is used for swap
 -- aggregator v6 implemented
 
 
---- clipper && unoswap 
+--- clipper && unoswap && Generic router
 
+
+## ClipperDex
+for small trades
