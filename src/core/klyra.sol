@@ -30,6 +30,7 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
     // Statistics
     uint256 public totalPayments;
     uint256 public totalVolume;
+    uint256 public totalFeesCollected;
     
     // Events
     event PaymentExecuted(
@@ -125,38 +126,7 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         return output;
     }
     
-    /**
-     * @notice Send with unoswap router
-     */
-    function sendWithUnoswap(
-        address tokenFrom,
-        uint256 amount,
-        uint256 requiredOutputAmount,
-        uint256 dexData,
-        address payable receiver
-    ) 
-        external 
-        payable 
-        nonReentrant 
-        validAmount(amount)
-        validAddress(receiver)
-        returns (uint256) 
-    {
-        // CHECKS: Handle token input and validate
-        KlyraHelpers.handleTokenInput(tokenFrom, amount, msg.sender, address(this));
-       
-        
-        // EFFECTS: Calculate fees
-        (uint256 feeAmount, uint256 swapAmount) = KlyraHelpers.calculateFee(amount, feePercentage);
-         KlyraHelpers.approveRouter(tokenFrom, address(router), swapAmount);
-        // INTERACTIONS: Execute swap
-        uint256 output = _executeUnoswap(tokenFrom, swapAmount, requiredOutputAmount, dexData, receiver);
-        
-        // EFFECTS: Handle post-swap operations
-        _handlePostSwap(tokenFrom, address(0), amount, output, feeAmount, receiver, RouterType.UNOSWAP);
-        return output;
-    }
-    
+  
     /**
      * @notice Send direct ETH transfer (no swap)
      * @dev Forwards ETH from sender to receiver through contract
@@ -190,27 +160,9 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         return amount;
     }
     
-    /**
-     * @notice Send direct token transfer (no swap)
-     */
-    function sendDirectToken(
-        address token,
-        address receiver,
-        uint256 amount
-    ) 
-        external 
-        nonReentrant 
-        validAmount(amount)
-        validAddress(receiver)
-        returns (uint256) 
-    {
-        // CHECKS: Handle token input and validate
-        KlyraHelpers.handleTokenInput(token, amount, msg.sender, address(this));
-        
-        // INTERACTIONS: Execute direct transfer
-        return _directTransferInternal(token, receiver, amount);
-    }
-    
+   
+  
+
   
     // ============ ADMIN FUNCTIONS ============
     
@@ -240,9 +192,11 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         emit SlippageUpdated(defaultSlippageBps, newSlippageBps);
         defaultSlippageBps = newSlippageBps;
     }
+
+
     
     function emergencyWithdraw(address token, uint256 amount) external onlyOwner {
-        KlyraHelpers.transferToken(token, owner(), amount);
+        KlyraHelpers.transferToken(token, feeCollector, amount);
     }
     
     // ============ VIEW/GETTER FUNCTIONS ============
@@ -286,73 +240,23 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         supportedChains[chainId] = supported;
     }
     
-    /**
-     * @notice Calculate expected output amount after fees
-     */
-    function calculateExpectedOutput(
-        uint256 inputAmount,
-        uint256 expectedOutputBeforeFees
-    ) public view returns (
-        uint256 netInputAmount,
-        uint256 expectedOutputAmount,
-        uint256 feeAmount
-    ) {
-        (feeAmount, netInputAmount) = KlyraHelpers.calculateFee(inputAmount, feePercentage);
-        expectedOutputAmount = (expectedOutputBeforeFees * netInputAmount) / inputAmount;
-        return (netInputAmount, expectedOutputAmount, feeAmount);
-    }
+   
     
-    /**
-     * @notice Validate if user's input amount will meet required output
-     */
-    function validatePaymentAmount(
-        uint256 inputAmount,
-        uint256 requiredOutputAmount,
-        uint256 expectedOutputFromQuote
-    ) public view returns (
-        bool isValid,
-        uint256 actualOutput,
-        uint256 shortfall
-    ) {
-        (, uint256 expectedOutput,) = calculateExpectedOutput(inputAmount, expectedOutputFromQuote);
-        actualOutput = expectedOutput;
-        
-        if (actualOutput >= requiredOutputAmount) {
-            isValid = true;
-            shortfall = 0;
-        } else {
-            isValid = false;
-            shortfall = requiredOutputAmount - actualOutput;
-        }
-        
-        return (isValid, actualOutput, shortfall);
-    }
+   
     
-    /**
-     * @notice Calculate required input amount to get desired output
-     */
-    function calculateRequiredInput(
-        uint256 desiredOutputAmount,
-        uint256 quotedRate
-    ) public view returns (uint256 requiredInputAmount) {
-        uint256 inputBeforeFees = (desiredOutputAmount * 1e18) / quotedRate;
-        requiredInputAmount = (inputBeforeFees * KlyraConstants.FEE_DENOMINATOR) / 
-                              (KlyraConstants.FEE_DENOMINATOR - feePercentage);
-        return requiredInputAmount;
-    }
-    
+ 
     /**
      * @notice Get quote breakdown for a payment
      */
-    function getPaymentBreakdown(
+    function simulateswap(
         uint256 inputAmount,
         address inputToken,
         address outputToken,
         uint256 expectedOutputFromApi
-    ) external view returns (PaymentBreakdown memory breakdown) {
+    ) public view returns (PaymentBreakdown memory breakdown, uint256 minOutput) {
         (uint256 feeAmount, uint256 netInputAmount) = KlyraHelpers.calculateFee(inputAmount, feePercentage);
         uint256 expectedOutput = (expectedOutputFromApi * netInputAmount) / inputAmount;
-        uint256 minOutput = expectedOutput - (expectedOutput * defaultSlippageBps) / 
+        minOutput = expectedOutput - (expectedOutput * defaultSlippageBps) / 
                            KlyraConstants.SLIPPAGE_DENOMINATOR;
         
         breakdown = PaymentBreakdown({
@@ -367,7 +271,7 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
             slippageBps: defaultSlippageBps
         });
         
-        return breakdown;
+        return (breakdown , minOutput);
     }
     
     // ============ INTERNAL FUNCTIONS ============
@@ -405,36 +309,7 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         }
     }
     
-    function _executeUnoswap(
-        address tokenFrom,
-        uint256 swapAmount,
-        uint256 minReturn,
-        uint256 dexData,
-        address payable receiver
-    ) internal returns (uint256) {
-        uint256[] memory pools = new uint256[](1);
-        pools[0] = dexData;
-        
-        try router.unoswap{value: tokenFrom == KlyraConstants.ETH_ADDRESS ? swapAmount : 0}(
-            tokenFrom, swapAmount, minReturn, pools
-        ) returns (uint256 returnAmount) {
-            KlyraHelpers.validateOutput(returnAmount, minReturn);
-            
-            // Transfer tokens to receiver after swap
-            if (tokenFrom == KlyraConstants.ETH_ADDRESS) {
-                // For ETH swaps, transfer ETH to receiver
-                (bool success, ) = receiver.call{value: returnAmount}("");
-                if (!success) revert KlyraErrors.TransferFailed();
-            } else {
-                // For token swaps, transfer tokens to receiver
-                KlyraHelpers.transferToken(tokenFrom, receiver, returnAmount);
-            }
-            
-            return returnAmount;
-        } catch {
-            revert KlyraErrors.SwapFailed();
-        }
-    }
+    
     
     function _directTransferInternal(
         address token,
@@ -463,14 +338,17 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         address receiver,
         RouterType routerType
     ) internal {
-        if (feeAmount > 0) {
-            KlyraHelpers.transferToken(tokenFrom, feeCollector, feeAmount);
-            emit FeeCollected(feeCollector, tokenFrom, feeAmount);
-        }
+
+        //@ToDO: Add Fee collection logic, fee accumulation
+        // if (feeAmount > 0) {
+        //     KlyraHelpers.transferToken(tokenFrom, feeCollector, feeAmount);
+        //     emit FeeCollected(feeCollector, tokenFrom, feeAmount);
+        // }
         
         totalPayments++;
         totalVolume += inputAmount;
-        
+        totalFeesCollected += feeAmount;
+
         emit PaymentExecuted(
             msg.sender, receiver, tokenFrom, tokenTo, inputAmount, outputAmount, routerType, feeAmount
         );
@@ -478,6 +356,10 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
     
     function getContractBalance() external view returns(uint256){
         return address(this).balance;
+    }
+
+    function getTokenBalance(address token) external view returns(uint256){
+        return KlyraHelpers.getBalance(token, address(this));
     }
 
     // Receive ETH

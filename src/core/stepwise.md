@@ -87,7 +87,23 @@ min
 
 
 ```
+stepwise  done.
 
-# users 
-per
+## Next step
+
+## gettor function
+
+function for check best rate
+
+-- use multiple excutors
+, unoswasp, clipper, v6 etc
+
+best with good rate is used for swap
+
+
+
+-- aggregator v6 implemented
+
+
+--- clipper && unoswap 
 
