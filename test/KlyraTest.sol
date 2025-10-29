@@ -161,12 +161,12 @@ contract KlyraTest is BaseTest {
         // First, send some tokens to the contract
         tokenA.mint(address(klyra), amount);
 
-        uint256 ownerBalanceBefore = tokenA.balanceOf(owner);
+        uint256 feeCollectorBalanceBefore = tokenA.balanceOf(feeCollector);
 
         vm.prank(owner);
         klyra.emergencyWithdraw(address(tokenA), amount);
 
-        assertEq(tokenA.balanceOf(owner), ownerBalanceBefore + amount);
+        assertEq(tokenA.balanceOf(feeCollector), feeCollectorBalanceBefore + amount);
     }
 
     // ============ VIEW FUNCTION TESTS ============
