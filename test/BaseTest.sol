@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {Klyra1inchV2} from "../src/core/klyra.sol";
 import {Router1inch} from "../src/routers/1incherouter.sol";
 import {KlyraConstants} from "../src/dataTypes/constants.sol";
-import {KlyraErrors} from "../src/dataTypes/errors.sol";
-import {PaymentBreakdown} from "../src/dataTypes/structs.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 
@@ -148,7 +146,7 @@ abstract contract BaseTest is Test {
         if (token == KlyraConstants.ETH_ADDRESS) {
             vm.deal(to, to.balance + amount);
         } else {
-            IERC20(token).transfer(to, amount);
+            require(IERC20(token).transfer(to, amount), "Transfer failed");
         }
     }
 
@@ -188,17 +186,29 @@ abstract contract BaseTest is Test {
     }
 
     /**
-     * @notice Helper to calculate expected fee
+     * @notice Helper to calculate expected fee (rounded up to match contract)
      */
     function _calculateFee(uint256 amount) internal pure returns (uint256 feeAmount, uint256 netAmount) {
-        feeAmount = (amount * FEE_PERCENTAGE) / KlyraConstants.FEE_DENOMINATOR;
+        // Round up: (amount * FEE_PERCENTAGE + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR
+        feeAmount = (amount * FEE_PERCENTAGE + KlyraConstants.FEE_DENOMINATOR - 1) / KlyraConstants.FEE_DENOMINATOR;
         netAmount = amount - feeAmount;
+    }
+
+    /**
+     * @notice Helper to perform direct transfer (same token, uses sendWithAggregation)
+     * @dev When tokenFrom == tokenTo, it becomes a direct transfer
+     */
+    function _directTransfer(address token, address from, address to, uint256 amount) internal returns (uint256) {
+        vm.prank(from);
+        IERC20(token).approve(address(klyra), amount);
+        vm.prank(from);
+        return klyra.sendWithAggregation(token, token, amount, amount, to, address(0), "");
     }
 
     /**
      * @notice Helper to assert balance changes
      */
-    function _assertBalanceChange(address token, address account, uint256 expectedChange, uint256 tolerance) internal {
+    function _assertBalanceChange(address token, address account, uint256 expectedChange, uint256 tolerance) internal view {
         uint256 balance = _getBalance(token, account);
         assertApproxEqAbs(balance, expectedChange, tolerance, "Balance change mismatch");
     }

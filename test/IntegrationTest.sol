@@ -2,11 +2,11 @@
 pragma solidity 0.8.26;
 
 import {BaseTest} from "./BaseTest.sol";
-import {Klyra1inchV2} from "../src/core/klyra.sol";
 import {Router1inch} from "../src/routers/1incherouter.sol";
 import {KlyraConstants} from "../src/dataTypes/constants.sol";
 import {KlyraErrors} from "../src/dataTypes/errors.sol";
 import {PaymentBreakdown} from "../src/dataTypes/structs.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title IntegrationTest
@@ -32,9 +32,11 @@ contract IntegrationTest is BaseTest {
         uint256 totalPaymentsBefore = klyra.totalPayments();
         uint256 totalVolumeBefore = klyra.totalVolume();
 
-        // Execute payment
+        // Execute payment (direct transfer via sendWithAggregation)
         vm.prank(user1);
-        uint256 result = klyra.sendDirectToken(address(tokenA), user2, amount);
+        IERC20(address(tokenA)).approve(address(klyra), amount);
+        vm.prank(user1);
+        uint256 result = klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
 
         // Verify results (no fees for direct transfers)
         assertEq(result, amount);
@@ -47,21 +49,27 @@ contract IntegrationTest is BaseTest {
 
     function testMultiplePaymentsAccumulateStats() public {
         uint256 amount = TEST_AMOUNT;
-        (uint256 expectedFee, uint256 expectedNet) = _calculateFee(amount);
+        _calculateFee(amount);
 
         _approveAllTokens(address(klyra), amount);
 
         // First payment
         vm.prank(user1);
-        klyra.sendDirectToken(address(tokenA), user2, amount);
+        IERC20(address(tokenA)).approve(address(klyra), amount);
+        vm.prank(user1);
+        klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
 
         // Second payment
         vm.prank(user2);
-        klyra.sendDirectToken(address(tokenB), user3, amount);
+        IERC20(address(tokenB)).approve(address(klyra), amount);
+        vm.prank(user2);
+        klyra.sendWithAggregation(address(tokenB), address(tokenB), amount, amount, user3, address(0), "");
 
         // Third payment
         vm.prank(user3);
-        klyra.sendDirectToken(address(tokenC), user1, amount);
+        IERC20(address(tokenC)).approve(address(klyra), amount);
+        vm.prank(user3);
+        klyra.sendWithAggregation(address(tokenC), address(tokenC), amount, amount, user1, address(0), "");
 
         // Verify accumulated stats
         assertEq(klyra.totalPayments(), 3);
@@ -77,15 +85,21 @@ contract IntegrationTest is BaseTest {
 
         uint256 feeCollectorBalanceBefore = tokenA.balanceOf(feeCollector);
 
-        // Multiple payments with same token (no fees for direct transfers)
+        // Multiple payments with same token
         vm.prank(user1);
-        klyra.sendDirectToken(address(tokenA), user2, amount);
+        IERC20(address(tokenA)).approve(address(klyra), amount);
+        vm.prank(user1);
+        klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
 
         vm.prank(user2);
-        klyra.sendDirectToken(address(tokenA), user3, amount);
+        IERC20(address(tokenA)).approve(address(klyra), amount);
+        vm.prank(user2);
+        klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user3, address(0), "");
 
         vm.prank(user3);
-        klyra.sendDirectToken(address(tokenA), user1, amount);
+        IERC20(address(tokenA)).approve(address(klyra), amount);
+        vm.prank(user3);
+        klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user1, address(0), "");
 
         // Verify no fee accumulation (direct transfers have no fees)
         assertEq(tokenA.balanceOf(feeCollector), feeCollectorBalanceBefore);
@@ -99,12 +113,11 @@ contract IntegrationTest is BaseTest {
         vm.prank(owner);
         klyra.setFeePercentage(newFeePercentage);
 
-        _approveToken(address(tokenA), address(klyra), amount);
-
         vm.prank(user1);
-        uint256 result = klyra.sendDirectToken(address(tokenA), user2, amount);
+        IERC20(address(tokenA)).approve(address(klyra), amount);
+        vm.prank(user1);
+        uint256 result = klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
 
-        // Direct transfers have no fees regardless of fee percentage
         assertEq(result, amount);
         assertEq(klyra.feePercentage(), newFeePercentage);
     }
@@ -188,13 +201,13 @@ contract IntegrationTest is BaseTest {
 
     function testStatisticsIntegration() public {
         uint256 amount = TEST_AMOUNT;
-        (uint256 expectedFee, uint256 expectedNet) = _calculateFee(amount);
-
-        _approveToken(address(tokenA), address(klyra), amount);
+        _calculateFee(amount);
 
         // Make a payment
         vm.prank(user1);
-        klyra.sendDirectToken(address(tokenA), user2, amount);
+        IERC20(address(tokenA)).approve(address(klyra), amount);
+        vm.prank(user1);
+        klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
 
         // Check statistics
         (uint256 payments, uint256 volume, uint256 fee, address collector) = klyra.getStatistics();
@@ -205,12 +218,13 @@ contract IntegrationTest is BaseTest {
         assertEq(collector, feeCollector);
     }
 
-    function testPaymentBreakdownIntegration() public {
+    function testPaymentBreakdownIntegration() public view {
         uint256 inputAmount = 1000 * 10 ** 18;
-        uint256 expectedOutputFromApi = 2000 * 10 ** 18;
+        uint256 expectedOutputAggregation = 2000 * 10 ** 18;
+        uint256 expectedOutputClipper = 1950 * 10 ** 18;
 
-        PaymentBreakdown memory breakdown =
-            klyra.getPaymentBreakdown(inputAmount, address(tokenA), address(tokenB), expectedOutputFromApi);
+        (PaymentBreakdown memory breakdown,,) =
+            klyra.simulateswap(inputAmount, address(tokenA), address(tokenB), expectedOutputAggregation, expectedOutputClipper);
 
         // Verify breakdown structure
         assertEq(breakdown.inputToken, address(tokenA));
@@ -232,18 +246,19 @@ contract IntegrationTest is BaseTest {
         // Test with insufficient approval
         vm.prank(user1);
         vm.expectRevert();
-        klyra.sendDirectToken(address(tokenA), user2, amount);
+        klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
 
         // Test with invalid receiver
-        _approveToken(address(tokenA), address(klyra), amount);
+        vm.prank(user1);
+        IERC20(address(tokenA)).approve(address(klyra), amount);
         vm.prank(user1);
         vm.expectRevert(KlyraErrors.InvalidAddress.selector);
-        klyra.sendDirectToken(address(tokenA), address(0), amount);
+        klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, address(0), address(0), "");
 
         // Test with zero amount
         vm.prank(user1);
         vm.expectRevert(KlyraErrors.InvalidAmount.selector);
-        klyra.sendDirectToken(address(tokenA), user2, 0);
+        klyra.sendWithAggregation(address(tokenA), address(tokenA), 0, 0, user2, address(0), "");
     }
 
     function testAccessControlIntegration() public {
@@ -268,7 +283,7 @@ contract IntegrationTest is BaseTest {
 
     // ============ CHAIN SUPPORT TESTS ============
 
-    function testChainSupport() public {
+    function testChainSupport() public view {
         bool isSupported = klyra.isChainSupported();
         assertTrue(isSupported);
 
@@ -281,19 +296,25 @@ contract IntegrationTest is BaseTest {
 
     function testMultipleTokenTypes() public {
         uint256 amount = TEST_AMOUNT;
-        (uint256 expectedFee, uint256 expectedNet) = _calculateFee(amount);
+        _calculateFee(amount);
 
         _approveAllTokens(address(klyra), amount);
 
         // Test with different token types
         vm.prank(user1);
-        klyra.sendDirectToken(address(tokenA), user2, amount);
+        IERC20(address(tokenA)).approve(address(klyra), amount);
+        vm.prank(user1);
+        klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
 
         vm.prank(user2);
-        klyra.sendDirectToken(address(tokenB), user3, amount);
+        IERC20(address(tokenB)).approve(address(klyra), amount);
+        vm.prank(user2);
+        klyra.sendWithAggregation(address(tokenB), address(tokenB), amount, amount, user3, address(0), "");
 
         vm.prank(user3);
-        klyra.sendDirectToken(address(tokenC), user1, amount);
+        IERC20(address(tokenC)).approve(address(klyra), amount);
+        vm.prank(user3);
+        klyra.sendWithAggregation(address(tokenC), address(tokenC), amount, amount, user1, address(0), "");
 
         // Verify all payments processed
         assertEq(klyra.totalPayments(), 3);
@@ -304,18 +325,18 @@ contract IntegrationTest is BaseTest {
         uint256 tokenAmount = TEST_AMOUNT;
         uint256 ethAmount = 1 ether;
 
-        (uint256 tokenFee, uint256 tokenNet) = _calculateFee(tokenAmount);
-        (uint256 ethFee, uint256 ethNet) = _calculateFee(ethAmount);
-
-        _approveToken(address(tokenA), address(klyra), tokenAmount);
+        vm.prank(user1);
+        IERC20(address(tokenA)).approve(address(klyra), tokenAmount);
 
         // Token payment
         vm.prank(user1);
-        klyra.sendDirectToken(address(tokenA), user2, tokenAmount);
+        klyra.sendWithAggregation(address(tokenA), address(tokenA), tokenAmount, tokenAmount, user2, address(0), "");
 
         // ETH payment
         vm.prank(user2);
-        klyra.sendDirectETH{value: ethAmount}(user3);
+        klyra.sendWithAggregation{value: ethAmount}(
+            KlyraConstants.ETH_ADDRESS, KlyraConstants.ETH_ADDRESS, ethAmount, ethAmount, user3, address(0), ""
+        );
 
         // Verify both payments
         assertEq(klyra.totalPayments(), 2);

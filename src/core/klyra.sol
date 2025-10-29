@@ -2,7 +2,6 @@
 pragma solidity 0.8.26;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Router1inch} from "../routers/1incherouter.sol";
 import {KlyraModifiers} from "./modifer.sol";
 import {KlyraHelpers} from "./helper.sol";
@@ -114,36 +113,52 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         return output;
     }
 
+
+
     /**
-     * @notice Send direct ETH transfer (no swap)
-     * @dev Forwards ETH from sender to receiver through contract
+     * @notice Send with Clipper router (optimized for smaller swaps)
+     * @dev swapData should be encoded as: abi.encode(clipperExchange, goodUntil, r, vs)
      */
-    function sendDirectETH(address receiver)
+    function sendWithClipper(
+        address tokenFrom,
+        address tokenTo,
+        uint256 amount,
+        uint256 requiredOutputAmount,
+        address receiver,
+        address /* executor */,
+        bytes calldata swapData
+    )
         external
         payable
         nonReentrant
-        validAmount(msg.value)
+        validAmount(amount)
         validAddress(receiver)
+        validEthPayment(tokenFrom, amount)
         returns (uint256)
     {
-        uint256 amount = msg.value;
+        // CHECKS: Handle token input and validate
+        KlyraHelpers.handleTokenInput(tokenFrom, amount, msg.sender, address(this));
 
-        // CHECKS: Validate inputs (done by modifiers)
+        // CHECKS: If same token, do direct transfer
+        if (tokenFrom == tokenTo) {
+            return _directTransferInternal(tokenFrom, receiver, amount);
+        }
 
-        // EFFECTS: Update statistics
-        totalPayments++;
-        totalVolume += amount;
+        // EFFECTS: Calculate fees
+        (uint256 feeAmount, uint256 swapAmount) = KlyraHelpers.calculateFee(amount, feePercentage);
+        KlyraHelpers.approveRouter(tokenFrom, address(router), swapAmount);
 
-        // INTERACTIONS: Forward ETH from contract to receiver
-        // This creates: msg.sender -> contract -> receiver
-        (bool success,) = payable(receiver).call{value: amount}("");
-        if (!success) revert KlyraErrors.TransferFailed();
+        // INTERACTIONS: Execute Clipper swap
+        uint256 output = _executeClipperSwap(
+            tokenFrom, tokenTo, swapAmount, requiredOutputAmount, receiver, swapData
+        );
 
-        // EFFECTS: Emit event showing original sender
-        emit DirectTransfer(msg.sender, receiver, KlyraConstants.ETH_ADDRESS, amount);
-
-        return amount;
+        // EFFECTS: Handle post-swap operations
+        _handlePostSwap(tokenFrom, tokenTo, amount, output, feeAmount, receiver, RouterType.CLIPPER);
+        return output;
     }
+
+   
 
     // ============ ADMIN FUNCTIONS ============
 
@@ -214,31 +229,68 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         supportedChains[chainId] = supported;
     }
 
+
+
+
     /**
-     * @notice Get quote breakdown for a payment
+     * @notice Simulate swaps using all available swap paths and return the best quote
+     * @dev Compares Aggregation and Clipper router quotes and returns the one with highest output
+     * @param inputAmount Amount of input tokens
+     * @param inputToken Address of input token (use address(0) for ETH)
+     * @param outputToken Address of output token
+     * @param expectedOutputAggregation Expected output from Aggregation router API quote
+     * @param expectedOutputClipper Expected output from Clipper router API quote
+     * @return breakdown Payment breakdown for the best route
+     * @return minOutput Minimum output amount after slippage for the best route
+     * @return bestRouterType The router type that gives the best quote
      */
-    function simulateswap(uint256 inputAmount, address inputToken, address outputToken, uint256 expectedOutputFromApi)
+    function simulateswap(
+        uint256 inputAmount,
+        address inputToken,
+        address outputToken,
+        uint256 expectedOutputAggregation,
+        uint256 expectedOutputClipper
+    )
         public
         view
-        returns (PaymentBreakdown memory breakdown, uint256 minOutput)
+        returns (PaymentBreakdown memory breakdown, uint256 minOutput, RouterType bestRouterType)
     {
+        // Calculate fees (same for both routes)
         (uint256 feeAmount, uint256 netInputAmount) = KlyraHelpers.calculateFee(inputAmount, feePercentage);
-        uint256 expectedOutput = (expectedOutputFromApi * netInputAmount) / inputAmount;
-        minOutput = expectedOutput - (expectedOutput * defaultSlippageBps) / KlyraConstants.SLIPPAGE_DENOMINATOR;
 
+        // Calculate expected outputs after fees for both routes
+        uint256 expectedOutputAfterFeeAggregation = (expectedOutputAggregation * netInputAmount) / inputAmount;
+        uint256 expectedOutputAfterFeeClipper = (expectedOutputClipper * netInputAmount) / inputAmount;
+
+        // Determine which route gives better output
+        RouterType selectedRouter;
+        uint256 bestExpectedOutput;
+
+        if (expectedOutputAfterFeeAggregation >= expectedOutputAfterFeeClipper) {
+            selectedRouter = RouterType.AGGREGATION;
+            bestExpectedOutput = expectedOutputAfterFeeAggregation;
+        } else {
+            selectedRouter = RouterType.CLIPPER;
+            bestExpectedOutput = expectedOutputAfterFeeClipper;
+        }
+
+        // Calculate minimum output with slippage
+        minOutput = bestExpectedOutput - (bestExpectedOutput * defaultSlippageBps) / KlyraConstants.SLIPPAGE_DENOMINATOR;
+
+        // Build breakdown
         breakdown = PaymentBreakdown({
             inputToken: inputToken,
             outputToken: outputToken,
             inputAmount: inputAmount,
             feeAmount: feeAmount,
             netInputAmount: netInputAmount,
-            expectedOutputAmount: expectedOutput,
+            expectedOutputAmount: bestExpectedOutput,
             feePercentage: feePercentage,
             minOutputWithSlippage: minOutput,
             slippageBps: defaultSlippageBps
         });
 
-        return (breakdown, minOutput);
+        return (breakdown, minOutput, selectedRouter);
     }
 
     // ============ INTERNAL FUNCTIONS ============
@@ -266,6 +318,34 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
 
         try router.swap{value: tokenFrom == KlyraConstants.ETH_ADDRESS ? swapAmount : 0}(executor, desc, "", swapData)
         returns (uint256, uint256) {
+            uint256 output = KlyraHelpers.getBalance(tokenTo, address(this)) - balanceBefore;
+            KlyraHelpers.validateOutput(output, minReturn);
+            KlyraHelpers.transferToken(tokenTo, receiver, output);
+            return output;
+        } catch {
+            revert KlyraErrors.SwapFailed();
+        }
+    }
+
+    function _executeClipperSwap(
+        address tokenFrom,
+        address tokenTo,
+        uint256 swapAmount,
+        uint256 minReturn,
+        address receiver,
+        bytes calldata swapData
+    ) internal returns (uint256) {
+        // Decode swapData: abi.encode(clipperExchange, goodUntil, r, vs)
+        (address clipperExchange, uint256 goodUntil, bytes32 r, bytes32 vs) =
+            abi.decode(swapData, (address, uint256, bytes32, bytes32));
+
+        // Get balance before swap
+        uint256 balanceBefore = KlyraHelpers.getBalance(tokenTo, address(this));
+
+        // Execute Clipper swap
+        try router.clipperSwap{value: tokenFrom == KlyraConstants.ETH_ADDRESS ? swapAmount : 0}(
+            clipperExchange, tokenFrom, tokenTo, swapAmount, minReturn, goodUntil, r, vs
+        ) returns (uint256) {
             uint256 output = KlyraHelpers.getBalance(tokenTo, address(this)) - balanceBefore;
             KlyraHelpers.validateOutput(output, minReturn);
             KlyraHelpers.transferToken(tokenTo, receiver, output);
@@ -304,8 +384,12 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         //     emit FeeCollected(feeCollector, tokenFrom, feeAmount);
         // }
 
+        // Normalize all token amounts to 18 decimals for consistent calculations
+        uint256 inputAmountNormalized = KlyraHelpers.normalizeTo18Decimals(inputAmount, tokenFrom);
+        uint256 outputAmountNormalized = KlyraHelpers.normalizeTo18Decimals(outputAmount, tokenTo);
+
         totalPayments++;
-        totalVolume += inputAmount;
+        totalVolume += inputAmountNormalized;
         totalFeesCollected += feeAmount;
 
         emit PaymentExecuted(msg.sender, receiver, tokenFrom, tokenTo, inputAmount, outputAmount, routerType, feeAmount);
