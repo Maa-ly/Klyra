@@ -18,7 +18,7 @@ contract RouterTest is BaseTest {
 
     // ============ CONSTRUCTOR TESTS ============
 
-    function testConstructor() public {
+    function testConstructor() public view {
         assertEq(router.owner(), owner);
         assertEq(address(router.router()), KlyraConstants.DEFAULT_ROUTER);
         assertEq(address(router.router()), KlyraConstants.DEFAULT_ROUTER);
@@ -129,7 +129,7 @@ contract RouterTest is BaseTest {
 
     // ============ GET ROUTERS TESTS ============
 
-    function testGetRouters() public {
+    function testGetRouters() public view {
         (address aggregation, address unoswap, address clipper, address generic) = router.getRouters();
 
         assertEq(aggregation, KlyraConstants.DEFAULT_ROUTER);
@@ -155,7 +155,7 @@ contract RouterTest is BaseTest {
 
     // ============ ROUTER TYPE ENUM TESTS ============
 
-    function testRouterTypeEnum() public {
+    function testRouterTypeEnum() public pure {
         assertEq(uint256(Router1inch.RouterType.AGGREGATION), 0);
         assertEq(uint256(Router1inch.RouterType.UNOSWAP), 1);
         assertEq(uint256(Router1inch.RouterType.CLIPPER), 2);
@@ -164,7 +164,7 @@ contract RouterTest is BaseTest {
 
     // ============ INTEGRATION TESTS ============
 
-    function testRouterIntegrationWithKlyra() public {
+    function testRouterIntegrationWithKlyra() public view {
         // Verify that Klyra contract has router addresses set
         // Note: Klyra inherits from Router1inch, so it has its own router instances
         assertTrue(address(klyra.router()) != address(0));

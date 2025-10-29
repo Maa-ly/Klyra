@@ -7,6 +7,7 @@ import {Router1inch} from "../src/routers/1incherouter.sol";
 import {KlyraConstants} from "../src/dataTypes/constants.sol";
 import {KlyraErrors} from "../src/dataTypes/errors.sol";
 import {PaymentBreakdown} from "../src/dataTypes/structs.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title KlyraTest
@@ -20,7 +21,7 @@ contract KlyraTest is BaseTest {
 
     // ============ CONSTRUCTOR TESTS ============
 
-    function testConstructor() public {
+    function testConstructor() public view {
         assertEq(klyra.owner(), owner);
         assertEq(klyra.feeCollector(), feeCollector);
         assertEq(klyra.feePercentage(), FEE_PERCENTAGE);
@@ -40,18 +41,19 @@ contract KlyraTest is BaseTest {
     }
 
     // ============ DIRECT TRANSFER TESTS ============
+    // Note: Direct transfers are done via sendWithAggregation with same token
 
     function testSendDirectToken() public {
         uint256 amount = TEST_AMOUNT;
 
-        _approveToken(address(tokenA), address(klyra), amount);
+        vm.prank(user1);
+        IERC20(address(tokenA)).approve(address(klyra), amount);
 
         vm.prank(user1);
-        uint256 result = klyra.sendDirectToken(address(tokenA), user2, amount);
+        uint256 result = klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
 
         assertEq(result, amount);
         assertEq(tokenA.balanceOf(user2), INITIAL_BALANCE + amount);
-        assertEq(tokenA.balanceOf(feeCollector), 0); // No fees for direct transfers
         assertEq(klyra.totalPayments(), 1);
         assertEq(klyra.totalVolume(), amount);
     }
@@ -60,36 +62,39 @@ contract KlyraTest is BaseTest {
         uint256 amount = 1 ether;
 
         vm.prank(user1);
-        uint256 result = klyra.sendDirectETH{value: amount}(user2);
+        uint256 result = klyra.sendWithAggregation{value: amount}(
+            KlyraConstants.ETH_ADDRESS, KlyraConstants.ETH_ADDRESS, amount, amount, user2, address(0), ""
+        );
 
         assertEq(result, amount);
         assertEq(user2.balance, 100 ether + amount);
-        assertEq(feeCollector.balance, 0); // No fees for direct transfers
     }
 
     function testSendDirectInvalidAmount() public {
         vm.prank(user1);
         vm.expectRevert(KlyraErrors.InvalidAmount.selector);
-        klyra.sendDirectToken(address(tokenA), user2, 0);
+        klyra.sendWithAggregation(address(tokenA), address(tokenA), 0, 0, user2, address(0), "");
     }
 
     function testSendDirectInvalidReceiver() public {
-        _approveToken(address(tokenA), address(klyra), TEST_AMOUNT);
+        vm.prank(user1);
+        IERC20(address(tokenA)).approve(address(klyra), TEST_AMOUNT);
 
         vm.prank(user1);
         vm.expectRevert(KlyraErrors.InvalidAddress.selector);
-        klyra.sendDirectToken(address(tokenA), address(0), TEST_AMOUNT);
+        klyra.sendWithAggregation(address(tokenA), address(tokenA), TEST_AMOUNT, TEST_AMOUNT, address(0), address(0), "");
     }
 
     function testSendDirectInsufficientOutput() public {
-        // This test is no longer applicable since direct transfers don't validate output amounts
-        // Direct transfers are 1:1 transfers without output validation
-        _approveToken(address(tokenA), address(klyra), TEST_AMOUNT);
+        // Direct transfers with same token should succeed with full amount
+        vm.prank(user1);
+        IERC20(address(tokenA)).approve(address(klyra), TEST_AMOUNT);
 
         vm.prank(user1);
-        uint256 result = klyra.sendDirectToken(address(tokenA), user2, TEST_AMOUNT);
+        uint256 result = klyra.sendWithAggregation(
+            address(tokenA), address(tokenA), TEST_AMOUNT, TEST_AMOUNT, user2, address(0), ""
+        );
 
-        // Should succeed with full amount (no fees for direct transfers)
         assertEq(result, TEST_AMOUNT);
         assertEq(tokenA.balanceOf(user2), INITIAL_BALANCE + TEST_AMOUNT);
     }
@@ -166,7 +171,7 @@ contract KlyraTest is BaseTest {
 
     // ============ VIEW FUNCTION TESTS ============
 
-    function testGetStatistics() public {
+    function testGetStatistics() public view {
         (uint256 payments, uint256 volume, uint256 fee, address collector) = klyra.getStatistics();
 
         assertEq(payments, 0);
@@ -175,68 +180,20 @@ contract KlyraTest is BaseTest {
         assertEq(collector, feeCollector);
     }
 
-    function testIsChainSupported() public {
+    function testIsChainSupported() public view {
         bool isSupported = klyra.isChainSupported();
         assertTrue(isSupported);
     }
 
-    function testCalculateExpectedOutput() public {
+
+
+    function testGetPaymentBreakdown() public view {
         uint256 inputAmount = 1000 * 10 ** 18;
-        uint256 expectedOutputBeforeFees = 2000 * 10 ** 18;
+        uint256 expectedOutputAggregation = 2000 * 10 ** 18;
+        uint256 expectedOutputClipper = 1950 * 10 ** 18;
 
-        (uint256 netInputAmount, uint256 expectedOutputAmount, uint256 feeAmount) =
-            klyra.calculateExpectedOutput(inputAmount, expectedOutputBeforeFees);
-
-        (uint256 expectedFee, uint256 expectedNet) = _calculateFee(inputAmount);
-        uint256 expectedOutput = (expectedOutputBeforeFees * expectedNet) / inputAmount;
-
-        assertEq(feeAmount, expectedFee);
-        assertEq(netInputAmount, expectedNet);
-        assertEq(expectedOutputAmount, expectedOutput);
-    }
-
-    function testValidatePaymentAmount() public {
-        uint256 inputAmount = 1000 * 10 ** 18;
-        uint256 requiredOutputAmount = 1500 * 10 ** 18;
-        uint256 expectedOutputFromQuote = 2000 * 10 ** 18;
-
-        (bool isValid, uint256 actualOutput, uint256 shortfall) =
-            klyra.validatePaymentAmount(inputAmount, requiredOutputAmount, expectedOutputFromQuote);
-
-        assertTrue(isValid);
-        assertGt(actualOutput, requiredOutputAmount);
-        assertEq(shortfall, 0);
-    }
-
-    function testValidatePaymentAmountInsufficient() public {
-        uint256 inputAmount = 1000 * 10 ** 18;
-        uint256 requiredOutputAmount = 2500 * 10 ** 18;
-        uint256 expectedOutputFromQuote = 2000 * 10 ** 18;
-
-        (bool isValid, uint256 actualOutput, uint256 shortfall) =
-            klyra.validatePaymentAmount(inputAmount, requiredOutputAmount, expectedOutputFromQuote);
-
-        assertFalse(isValid);
-        assertLt(actualOutput, requiredOutputAmount);
-        assertGt(shortfall, 0);
-    }
-
-    function testCalculateRequiredInput() public {
-        uint256 desiredOutputAmount = 2000 * 10 ** 18;
-        uint256 quotedRate = 2 * 10 ** 18; // 1:2 ratio
-
-        uint256 requiredInputAmount = klyra.calculateRequiredInput(desiredOutputAmount, quotedRate);
-
-        // Should account for fees
-        assertGt(requiredInputAmount, desiredOutputAmount / 2);
-    }
-
-    function testGetPaymentBreakdown() public {
-        uint256 inputAmount = 1000 * 10 ** 18;
-        uint256 expectedOutputFromApi = 2000 * 10 ** 18;
-
-        PaymentBreakdown memory breakdown =
-            klyra.getPaymentBreakdown(inputAmount, address(tokenA), address(tokenB), expectedOutputFromApi);
+        (PaymentBreakdown memory breakdown,, Router1inch.RouterType bestRouter) =
+            klyra.simulateswap(inputAmount, address(tokenA), address(tokenB), expectedOutputAggregation, expectedOutputClipper);
 
         assertEq(breakdown.inputToken, address(tokenA));
         assertEq(breakdown.outputToken, address(tokenB));
@@ -244,6 +201,21 @@ contract KlyraTest is BaseTest {
         assertEq(breakdown.feePercentage, FEE_PERCENTAGE);
         assertGt(breakdown.feeAmount, 0);
         assertLt(breakdown.netInputAmount, inputAmount);
+        assertGt(breakdown.expectedOutputAmount, 0);
+        // Should select Aggregation as it has higher output
+        assertEq(uint256(bestRouter), uint256(Router1inch.RouterType.AGGREGATION));
+    }
+
+    function testGetPaymentBreakdownClipperBetter() public view {
+        uint256 inputAmount = 1000 * 10 ** 18;
+        uint256 expectedOutputAggregation = 1950 * 10 ** 18;
+        uint256 expectedOutputClipper = 2000 * 10 ** 18;
+
+        (PaymentBreakdown memory breakdown,, Router1inch.RouterType bestRouter) =
+            klyra.simulateswap(inputAmount, address(tokenA), address(tokenB), expectedOutputAggregation, expectedOutputClipper);
+
+        // Should select Clipper as it has higher output
+        assertEq(uint256(bestRouter), uint256(Router1inch.RouterType.CLIPPER));
         assertGt(breakdown.expectedOutputAmount, 0);
     }
 

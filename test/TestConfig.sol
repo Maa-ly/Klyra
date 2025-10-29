@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import {Test} from "forge-std/Test.sol";
-
 /**
  * @title TestConfig
  * @notice Test configuration and constants
@@ -55,3 +53,4 @@ contract TestConfig {
     uint256 public constant GAS_LIMIT_MEDIUM = 500000;
     uint256 public constant GAS_LIMIT_HIGH = 1000000;
 }
+
