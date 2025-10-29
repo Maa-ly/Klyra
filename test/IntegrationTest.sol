@@ -151,12 +151,12 @@ contract IntegrationTest is BaseTest {
         // Send tokens to contract
         tokenA.mint(address(klyra), emergencyAmount);
 
-        uint256 ownerBalanceBefore = tokenA.balanceOf(owner);
+        uint256 feeCollectorBalanceBefore = tokenA.balanceOf(feeCollector);
 
         vm.prank(owner);
         klyra.emergencyWithdraw(address(tokenA), emergencyAmount);
 
-        assertEq(tokenA.balanceOf(owner), ownerBalanceBefore + emergencyAmount);
+        assertEq(tokenA.balanceOf(feeCollector), feeCollectorBalanceBefore + emergencyAmount);
         assertEq(tokenA.balanceOf(address(klyra)), 0);
     }
 
