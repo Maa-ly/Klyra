@@ -113,10 +113,9 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         return output;
     }
 
-
-
     /**
      * @notice Send with Clipper router (optimized for smaller swaps)
+     * But we will still call simulate swap before all swaps to get best rate for user.
      * @dev swapData should be encoded as: abi.encode(clipperExchange, goodUntil, r, vs)
      */
     function sendWithClipper(
@@ -125,7 +124,7 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         uint256 amount,
         uint256 requiredOutputAmount,
         address receiver,
-        address /* executor */,
+        address, /* executor */
         bytes calldata swapData
     )
         external
@@ -149,16 +148,12 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         KlyraHelpers.approveRouter(tokenFrom, address(router), swapAmount);
 
         // INTERACTIONS: Execute Clipper swap
-        uint256 output = _executeClipperSwap(
-            tokenFrom, tokenTo, swapAmount, requiredOutputAmount, receiver, swapData
-        );
+        uint256 output = _executeClipperSwap(tokenFrom, tokenTo, swapAmount, requiredOutputAmount, receiver, swapData);
 
         // EFFECTS: Handle post-swap operations
         _handlePostSwap(tokenFrom, tokenTo, amount, output, feeAmount, receiver, RouterType.CLIPPER);
         return output;
     }
-
-   
 
     // ============ ADMIN FUNCTIONS ============
 
@@ -180,6 +175,11 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         feeCollector = newCollector;
     }
 
+    /**
+     * @notice Set default slippage for all swaps
+     * best will bet to have it in percentages in fromend so user can pick 10%, 35& 100%
+     * @param newSlippageBps The new slippage in basis points
+     */
     function setDefaultSlippage(uint256 newSlippageBps) external onlyOwner {
         // CHECKS: Validate input
         if (newSlippageBps > KlyraConstants.SLIPPAGE_DENOMINATOR) revert KlyraErrors.InvalidFee();
@@ -197,6 +197,7 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
 
     /**
      * @notice Get contract statistics
+     *
      */
     function getStatistics() external view returns (uint256 payments, uint256 volume, uint256 fee, address collector) {
         return (totalPayments, totalVolume, feePercentage, feeCollector);
@@ -229,9 +230,6 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         supportedChains[chainId] = supported;
     }
 
-
-
-
     /**
      * @notice Simulate swaps using all available swap paths and return the best quote
      * @dev Compares Aggregation and Clipper router quotes and returns the one with highest output
@@ -250,11 +248,7 @@ contract Klyra1inchV2 is Router1inch, ReentrancyGuard, KlyraModifiers {
         address outputToken,
         uint256 expectedOutputAggregation,
         uint256 expectedOutputClipper
-    )
-        public
-        view
-        returns (PaymentBreakdown memory breakdown, uint256 minOutput, RouterType bestRouterType)
-    {
+    ) public view returns (PaymentBreakdown memory breakdown, uint256 minOutput, RouterType bestRouterType) {
         // Calculate fees (same for both routes)
         (uint256 feeAmount, uint256 netInputAmount) = KlyraHelpers.calculateFee(inputAmount, feePercentage);
 

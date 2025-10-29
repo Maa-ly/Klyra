@@ -97,19 +97,18 @@ library KlyraHelpers {
         if (token == KlyraConstants.ETH_ADDRESS) {
             return 18;
         }
-        
+
         // Try to get decimals using staticcall (safe for non-standard tokens)
-        (bool success, bytes memory data) = address(token).staticcall(
-            abi.encodeWithSelector(IERC20Metadata.decimals.selector)
-        );
-        
+        (bool success, bytes memory data) =
+            address(token).staticcall(abi.encodeWithSelector(IERC20Metadata.decimals.selector));
+
         if (success && data.length >= 32) {
             uint256 returnedDecimals = abi.decode(data, (uint256));
             if (returnedDecimals <= type(uint8).max) {
                 return uint8(returnedDecimals);
             }
         }
-        
+
         // Default to 18 decimals if call fails or returns invalid value
         return 18;
     }
@@ -123,7 +122,7 @@ library KlyraHelpers {
      */
     function normalizeTo18Decimals(uint256 amount, address token) internal view returns (uint256) {
         uint8 decimals = getTokenDecimals(token);
-        
+
         if (decimals == 18) {
             return amount;
         } else if (decimals < 18) {

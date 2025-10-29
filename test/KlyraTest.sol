@@ -50,7 +50,8 @@ contract KlyraTest is BaseTest {
         IERC20(address(tokenA)).approve(address(klyra), amount);
 
         vm.prank(user1);
-        uint256 result = klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
+        uint256 result =
+            klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
 
         assertEq(result, amount);
         assertEq(tokenA.balanceOf(user2), INITIAL_BALANCE + amount);
@@ -82,7 +83,9 @@ contract KlyraTest is BaseTest {
 
         vm.prank(user1);
         vm.expectRevert(KlyraErrors.InvalidAddress.selector);
-        klyra.sendWithAggregation(address(tokenA), address(tokenA), TEST_AMOUNT, TEST_AMOUNT, address(0), address(0), "");
+        klyra.sendWithAggregation(
+            address(tokenA), address(tokenA), TEST_AMOUNT, TEST_AMOUNT, address(0), address(0), ""
+        );
     }
 
     function testSendDirectInsufficientOutput() public {
@@ -91,9 +94,8 @@ contract KlyraTest is BaseTest {
         IERC20(address(tokenA)).approve(address(klyra), TEST_AMOUNT);
 
         vm.prank(user1);
-        uint256 result = klyra.sendWithAggregation(
-            address(tokenA), address(tokenA), TEST_AMOUNT, TEST_AMOUNT, user2, address(0), ""
-        );
+        uint256 result =
+            klyra.sendWithAggregation(address(tokenA), address(tokenA), TEST_AMOUNT, TEST_AMOUNT, user2, address(0), "");
 
         assertEq(result, TEST_AMOUNT);
         assertEq(tokenA.balanceOf(user2), INITIAL_BALANCE + TEST_AMOUNT);
@@ -185,15 +187,14 @@ contract KlyraTest is BaseTest {
         assertTrue(isSupported);
     }
 
-
-
     function testGetPaymentBreakdown() public view {
         uint256 inputAmount = 1000 * 10 ** 18;
         uint256 expectedOutputAggregation = 2000 * 10 ** 18;
         uint256 expectedOutputClipper = 1950 * 10 ** 18;
 
-        (PaymentBreakdown memory breakdown,, Router1inch.RouterType bestRouter) =
-            klyra.simulateswap(inputAmount, address(tokenA), address(tokenB), expectedOutputAggregation, expectedOutputClipper);
+        (PaymentBreakdown memory breakdown,, Router1inch.RouterType bestRouter) = klyra.simulateswap(
+            inputAmount, address(tokenA), address(tokenB), expectedOutputAggregation, expectedOutputClipper
+        );
 
         assertEq(breakdown.inputToken, address(tokenA));
         assertEq(breakdown.outputToken, address(tokenB));
@@ -211,8 +212,9 @@ contract KlyraTest is BaseTest {
         uint256 expectedOutputAggregation = 1950 * 10 ** 18;
         uint256 expectedOutputClipper = 2000 * 10 ** 18;
 
-        (PaymentBreakdown memory breakdown,, Router1inch.RouterType bestRouter) =
-            klyra.simulateswap(inputAmount, address(tokenA), address(tokenB), expectedOutputAggregation, expectedOutputClipper);
+        (PaymentBreakdown memory breakdown,, Router1inch.RouterType bestRouter) = klyra.simulateswap(
+            inputAmount, address(tokenA), address(tokenB), expectedOutputAggregation, expectedOutputClipper
+        );
 
         // Should select Clipper as it has higher output
         assertEq(uint256(bestRouter), uint256(Router1inch.RouterType.CLIPPER));

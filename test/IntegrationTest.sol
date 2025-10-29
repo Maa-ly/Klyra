@@ -36,7 +36,8 @@ contract IntegrationTest is BaseTest {
         vm.prank(user1);
         IERC20(address(tokenA)).approve(address(klyra), amount);
         vm.prank(user1);
-        uint256 result = klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
+        uint256 result =
+            klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
 
         // Verify results (no fees for direct transfers)
         assertEq(result, amount);
@@ -116,7 +117,8 @@ contract IntegrationTest is BaseTest {
         vm.prank(user1);
         IERC20(address(tokenA)).approve(address(klyra), amount);
         vm.prank(user1);
-        uint256 result = klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
+        uint256 result =
+            klyra.sendWithAggregation(address(tokenA), address(tokenA), amount, amount, user2, address(0), "");
 
         assertEq(result, amount);
         assertEq(klyra.feePercentage(), newFeePercentage);
@@ -223,8 +225,9 @@ contract IntegrationTest is BaseTest {
         uint256 expectedOutputAggregation = 2000 * 10 ** 18;
         uint256 expectedOutputClipper = 1950 * 10 ** 18;
 
-        (PaymentBreakdown memory breakdown,,) =
-            klyra.simulateswap(inputAmount, address(tokenA), address(tokenB), expectedOutputAggregation, expectedOutputClipper);
+        (PaymentBreakdown memory breakdown,,) = klyra.simulateswap(
+            inputAmount, address(tokenA), address(tokenB), expectedOutputAggregation, expectedOutputClipper
+        );
 
         // Verify breakdown structure
         assertEq(breakdown.inputToken, address(tokenA));
