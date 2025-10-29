@@ -110,3 +110,6 @@ best with good rate is used for swap
 
 ## ClipperDex
 for small trades
+
+
+forge script script/DeployEthereumSepolia.s.sol:DeployEthereumSepolia --rpc-url https://eth-sepolia.g.alchemy.com/v2/V_wzwTCsq7HY3N8NgrxQa --broadcast --verify --etherscan-api-key HTDVMK163UPY84C349U9ENPMSJZRNXX577

@@ -57,8 +57,8 @@ contract Router1inch is Ownable {
      */
     function updateAllRouters(
         address aggregationAddress,
-        address /* unoswapAddress */,
-        address /* clipperAddress */,
+        address, /* unoswapAddress */
+        address, /* clipperAddress */
         address /* genericAddress */
     ) external onlyOwner {
         // CHECKS: Validate input

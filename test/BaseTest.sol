@@ -208,7 +208,10 @@ abstract contract BaseTest is Test {
     /**
      * @notice Helper to assert balance changes
      */
-    function _assertBalanceChange(address token, address account, uint256 expectedChange, uint256 tolerance) internal view {
+    function _assertBalanceChange(address token, address account, uint256 expectedChange, uint256 tolerance)
+        internal
+        view
+    {
         uint256 balance = _getBalance(token, account);
         assertApproxEqAbs(balance, expectedChange, tolerance, "Balance change mismatch");
     }
